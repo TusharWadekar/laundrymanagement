@@ -3,6 +3,7 @@ package com.dattakrupa.laundry.serviceImpl;
 import com.dattakrupa.laundry.dto.PaymentRequestDTO;
 import com.dattakrupa.laundry.dto.PaymentResponseDTO;
 import com.dattakrupa.laundry.enums.PaymentStatus;
+import com.dattakrupa.laundry.exception.ResourceNotFoundException;
 import com.dattakrupa.laundry.model.Customer;
 import com.dattakrupa.laundry.model.Order;
 import com.dattakrupa.laundry.model.Payment;
@@ -53,7 +54,7 @@ public class PaymentServiceImpl implements PaymentService {
         try {
             // Order dhundo
             Order order = orderRepository.findById(orderId)
-                    .orElseThrow(() -> new RuntimeException(
+                    .orElseThrow(() -> new ResourceNotFoundException(
                             "Order nahi mila ID: " + orderId));
 
             // Already paid check karo

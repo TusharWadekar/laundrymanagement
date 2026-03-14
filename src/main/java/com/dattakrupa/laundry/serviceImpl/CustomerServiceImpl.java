@@ -2,6 +2,8 @@ package com.dattakrupa.laundry.serviceImpl;
 
 import com.dattakrupa.laundry.dto.CustomerRequestDTO;
 import com.dattakrupa.laundry.dto.CustomerResponseDTO;
+import com.dattakrupa.laundry.exception.DuplicateResourceException;
+import com.dattakrupa.laundry.exception.ResourceNotFoundException;
 import com.dattakrupa.laundry.model.Customer;
 import com.dattakrupa.laundry.repository.CustomerRepository;
 import com.dattakrupa.laundry.service.CustomerService;
@@ -22,10 +24,13 @@ public class CustomerServiceImpl implements CustomerService {
 
     @Override
     public CustomerResponseDTO createCustomer(CustomerRequestDTO request) {
+
+        String phone = request.getPhoneNumber().trim();
         // Phone already exist karta hai kya?
-            if (customerRepository.existsByPhoneNumber(request.getPhoneNumber())) {
-            throw new RuntimeException("Is phone number se customer already exist karta hai: "
-                    + request.getPhoneNumber());
+            if (customerRepository.existsByPhoneNumber(phone)) {
+                throw new DuplicateResourceException(
+                        "Is phone number se customer already exist karta hai: "
+                                + request.getPhoneNumber());
         }
 
         Customer customer = Customer.builder()
@@ -52,7 +57,7 @@ public class CustomerServiceImpl implements CustomerService {
     @Override
     public CustomerResponseDTO getCustomerById(Long id) {
         Customer customer = customerRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Customer nahi mila ID: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException("Customer", id));
         return mapToResponse(customer);
     }
 

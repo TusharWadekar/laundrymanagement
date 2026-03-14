@@ -3,6 +3,7 @@ package com.dattakrupa.laundry.serviceImpl;
 import com.dattakrupa.laundry.dto.*;
 import com.dattakrupa.laundry.enums.OrderStatus;
 import com.dattakrupa.laundry.enums.PaymentStatus;
+import com.dattakrupa.laundry.exception.ResourceNotFoundException;
 import com.dattakrupa.laundry.model.*;
 import com.dattakrupa.laundry.repository.*;
 import com.dattakrupa.laundry.service.OrderService;
@@ -45,7 +46,7 @@ public class OrderServiceImpl implements OrderService {
 
         // Customer dhundo
         Customer customer = customerRepository.findById(request.getCustomerId())
-                .orElseThrow(() -> new RuntimeException(
+                .orElseThrow(() -> new ResourceNotFoundException(
                         "Customer nahi mila ID: " + request.getCustomerId()));
 
         // Order banao
@@ -96,7 +97,7 @@ public class OrderServiceImpl implements OrderService {
     @Override
     public OrderResponseDTO getOrderById(Long id) {
         Order order = orderRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Order nahi mila ID: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException("Order nahi mila ID: " + id));
         return mapToResponse(order);
     }
 
