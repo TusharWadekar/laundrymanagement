@@ -26,6 +26,7 @@ public class Order {
     // Kon sa customer ka order hai
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "customer_id", nullable = false)
+    @ToString.Exclude
     private Customer customer;
 
     @Enumerated(EnumType.STRING)
@@ -59,9 +60,11 @@ public class Order {
 
     // Order ke andar kaun kaun se kapde hain
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, fetch = FetchType.EAGER)
+    @ToString.Exclude
     private List<OrderItem> items;
 
     // Is order ke payments
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @ToString.Exclude
     private List<Payment> payments;
 }

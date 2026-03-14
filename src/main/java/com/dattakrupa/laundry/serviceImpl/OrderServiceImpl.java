@@ -131,9 +131,10 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     public void sendBillOnWhatsApp(Long orderId) {
-        Order order = orderRepository.findById(orderId)
-                .orElseThrow(() -> new RuntimeException(
-                        "Order nahi mila ID: " + orderId));
+       Order order = orderRepository.getOrderById(orderId);
+        if (order == null) {
+            throw new RuntimeException("Order nahi mila ID: " + orderId);
+        }
 
         // Razorpay payment link banao
         Map<String, Object> razorpayData =

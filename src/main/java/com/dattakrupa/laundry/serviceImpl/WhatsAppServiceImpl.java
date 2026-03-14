@@ -144,10 +144,16 @@ public class WhatsAppServiceImpl implements WhatsAppService {
 
     // ── Private Helper — Message Bhejo ──
     private void sendMessage(String to, String body) {
-        Message.creator(
-                new PhoneNumber(to),
-                new PhoneNumber(fromNumber),
-                body
-        ).create();
+        try {
+            Message.creator(
+                    new PhoneNumber(to),
+                    new PhoneNumber(fromNumber),
+                    body
+            ).create();
+            log.info("✅ Message sent successfully to: {}", to);
+        } catch (Exception e) {
+            log.error("❌ Failed to send message to {}: {}", to, e.getMessage());
+            throw new RuntimeException("Message sending failed: " + e.getMessage(), e);
+        }
     }
 }

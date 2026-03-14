@@ -47,5 +47,6 @@ public class Customer {
 
     // Ek customer ke multiple orders
     @OneToMany(mappedBy = "customer", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @ToString.Exclude
     private List<Order> orders;
 }
