@@ -32,7 +32,7 @@ public class OrderResponseDTO {
     private String notes;
     private LocalDate expectedDelivery;
     private LocalDateTime createdAt;
-
+    private Long daysSinceCreated;
     // Razorpay ke liye
     private String razorpayOrderId;
 }

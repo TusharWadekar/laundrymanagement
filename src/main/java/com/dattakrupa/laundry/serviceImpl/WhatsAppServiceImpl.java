@@ -1,8 +1,13 @@
 package com.dattakrupa.laundry.serviceImpl;
 
+import com.dattakrupa.laundry.enums.PaymentStatus;
+import com.dattakrupa.laundry.exception.BadRequestException;
+import com.dattakrupa.laundry.exception.ResourceNotFoundException;
+import com.dattakrupa.laundry.exception.WhatsAppException;
 import com.dattakrupa.laundry.model.Customer;
 import com.dattakrupa.laundry.model.Order;
 import com.dattakrupa.laundry.repository.CustomerRepository;
+import com.dattakrupa.laundry.repository.OrderRepository;
 import com.dattakrupa.laundry.service.WhatsAppService;
 import com.twilio.Twilio;
 import com.twilio.rest.api.v2010.account.Message;
@@ -11,6 +16,13 @@ import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import com.dattakrupa.laundry.enums.PaymentStatus;
+import com.dattakrupa.laundry.model.Order;
+import com.dattakrupa.laundry.repository.OrderRepository;
+import java.util.List;
+import java.util.stream.Collectors;
+import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @Slf4j
@@ -30,8 +42,11 @@ public class WhatsAppServiceImpl implements WhatsAppService {
 
     private final CustomerRepository customerRepository;
 
-    public WhatsAppServiceImpl(CustomerRepository customerRepository) {
+    private final OrderRepository orderRepository;
+
+    public WhatsAppServiceImpl(CustomerRepository customerRepository,OrderRepository orderRepository) {
         this.customerRepository = customerRepository;
+        this.orderRepository = orderRepository;
     }
 
     // Twilio initialize karo
@@ -48,19 +63,21 @@ public class WhatsAppServiceImpl implements WhatsAppService {
             String customerPhone = "whatsapp:+91"
                     + order.getCustomer().getPhoneNumber();
 
-            // Items list banao
             StringBuilder itemsList = new StringBuilder();
-            order.getItems().forEach(item ->
+            order.getItems().forEach(item -> {
+                int subtotal = (int) Math.round(item.getSubtotal());
                 itemsList.append("   • ")
-                         .append(item.getItemName())
-                         .append(" × ")
-                         .append(item.getQuantity())
-                         .append(" = ₹")
-                         .append(item.getSubtotal())
-                         .append("\n")
-            );
+                        .append(item.getItemName())
+                        .append(" × ")
+                        .append(item.getQuantity())
+                        .append(" = ₹")
+                        .append(subtotal)
+                        .append("\n");
+            });
 
-            // WhatsApp message banao
+            int totalAmount = (int) Math.round(order.getTotalAmount());
+
+            // ✅ Payment link cleanly format karo
             String message = "🧺 *DattaKrupa Laundry*\n\n"
                     + "Namaste *" + order.getCustomer().getName() + "* ji! 🙏\n"
                     + "Aapke kapde taiyar hain! ✅\n\n"
@@ -68,21 +85,22 @@ public class WhatsAppServiceImpl implements WhatsAppService {
                     + "📋 *Bill Details:*\n"
                     + itemsList
                     + "━━━━━━━━━━━━━━━\n"
-                    + "💰 *Total: ₹" + order.getTotalAmount() + "*\n\n"
+                    + "💰 *Total: ₹" + totalAmount + "*\n\n"
                     + "💳 *Online Pay Karein:*\n"
-                    + paymentLink + "\n\n"
+                    + paymentLink + "\n\n"  // ← Yeh link
+                    + "⏰ *Link 24 ghante valid hai*\n\n"
                     + "🙏 Thank you!\n"
-                    + "_DattaKrupa Laundry_";
+                    + "_DattaKrupa Laundry_ 🧺";
 
-            // Message bhejo
             sendMessage(customerPhone, message);
 
-            log.info("✅ Bill WhatsApp bheja: {} ko Order #{}",
+            log.info("✅ Bill bheja: {} Order #{}",
                     order.getCustomer().getName(), order.getId());
 
         } catch (Exception e) {
-            log.error("❌ WhatsApp bill send failed: {}", e.getMessage());
-            throw new RuntimeException("WhatsApp message nahi gaya: " + e.getMessage());
+            log.error("❌ Bill failed: {}", e.getMessage());
+            throw new WhatsAppException(
+                    "WhatsApp message nahi gaya: " + e.getMessage());
         }
     }
 
@@ -93,11 +111,15 @@ public class WhatsAppServiceImpl implements WhatsAppService {
             String customerPhone = "whatsapp:+91"
                     + order.getCustomer().getPhoneNumber();
 
+            // ✅ Decimal remove karo
+            int totalAmount = (int) Math.round(order.getTotalAmount());
+
             String message = "✅ *Payment Successful!*\n\n"
-                    + "🙏 Shukriya *" + order.getCustomer().getName() + "* ji!\n\n"
+                    + "🙏 Shukriya *"
+                    + order.getCustomer().getName() + "* ji!\n\n"
                     + "━━━━━━━━━━━━━━━\n"
                     + "📦 Order #" + order.getId() + "\n"
-                    + "💰 Amount: *₹" + order.getTotalAmount() + "*\n"
+                    + "💰 Amount: *₹" + totalAmount + "*\n" // ✅ Fix
                     + "✅ Status: *Paid*\n"
                     + "━━━━━━━━━━━━━━━\n\n"
                     + "Aapka swagat hai! 😊\n"
@@ -109,7 +131,8 @@ public class WhatsAppServiceImpl implements WhatsAppService {
                     order.getCustomer().getName());
 
         } catch (Exception e) {
-            log.error("❌ Payment confirmation failed: {}", e.getMessage());
+            log.error("❌ Payment confirmation failed: {}",
+                    e.getMessage());
         }
     }
 
@@ -118,27 +141,78 @@ public class WhatsAppServiceImpl implements WhatsAppService {
     public void sendUdhariReminder(Long customerId) {
         try {
             Customer customer = customerRepository.findById(customerId)
-                    .orElseThrow(() -> new RuntimeException(
-                            "Customer nahi mila ID: " + customerId));
+                    .orElseThrow(() -> new ResourceNotFoundException(
+                            "Customer", customerId));
 
-            String customerPhone = "whatsapp:+91" + customer.getPhoneNumber();
+            // Orders se actual due calculate karo
+            List<Order> unpaidOrders = orderRepository
+                    .findByCustomerId(customerId)
+                    .stream()
+                    .filter(o -> o.getPaymentStatus() != PaymentStatus.PAID)
+                    .toList();
+
+            // Total due calculate karo
+            double actualTotalDue = unpaidOrders.stream()
+                    .mapToDouble(Order::getDueAmount)
+                    .sum();
+
+            // Agar koi due nahi hai
+            if (actualTotalDue <= 0) {
+                log.info("Customer {} ki koi udhari nahi hai",
+                        customer.getName());
+                throw new BadRequestException(
+                        customer.getName() + " ki koi udhari nahi hai!");
+            }
+
+            String customerPhone = "whatsapp:+91"
+                    + customer.getPhoneNumber();
+
+            // ✅ Orders list — Total + Paid + Due teeno dikhao
+            StringBuilder ordersList = new StringBuilder();
+            unpaidOrders.forEach(order -> {
+                int total = (int) Math.round(order.getTotalAmount());
+                int paid  = (int) Math.round(order.getPaidAmount());
+                int due   = (int) Math.round(order.getDueAmount());
+
+                ordersList.append("   📦 *Order #")
+                        .append(order.getId())
+                        .append("*\n")
+                        .append("      💰 Total:  ₹").append(total).append("\n")
+                        .append("      ✅ Paid:   ₹").append(paid).append("\n")
+                        .append("      ⏳ Due:    ₹").append(due).append("\n")
+                        .append("      Status: ").append(order.getStatus()).append("\n\n");
+            });
+
+            // Total due
+            int totalDue = (int) Math.round(actualTotalDue);
 
             String message = "📒 *DattaKrupa Laundry — Reminder*\n\n"
                     + "Namaste *" + customer.getName() + "* ji! 🙏\n\n"
-                    + "Aapki pending payment hai:\n"
-                    + "💰 *₹" + customer.getTotalDue() + "*\n\n"
+                    + "━━━━━━━━━━━━━━━\n"
+                    + "Aapki pending payments:\n\n"
+                    + ordersList
+                    + "━━━━━━━━━━━━━━━\n"
+                    + "💰 *Total Due: ₹" + totalDue + "*\n\n"
                     + "Kripya jaldi payment karein.\n"
-                    + "Online pay karein ya shop pe aakar milein.\n\n"
+                    + "💳 Online ya shop pe aakar milein.\n\n"
                     + "Shukriya! 🙏\n"
                     + "_DattaKrupa Laundry_ 🧺";
 
             sendMessage(customerPhone, message);
 
-            log.info("✅ Udhari reminder bheja: {} ₹{}",
-                    customer.getName(), customer.getTotalDue());
+            // Customer totalDue update karo
+            customer.setTotalDue(actualTotalDue);
+            customerRepository.save(customer);
 
+            log.info("✅ Udhari reminder bheja: {} ₹{}",
+                    customer.getName(), totalDue);
+
+        } catch (BadRequestException e) {
+            throw e;
         } catch (Exception e) {
-            log.error("❌ Udhari reminder failed: {}", e.getMessage());
+            log.error("❌ Reminder failed: {}", e.getMessage());
+            throw new WhatsAppException(
+                    "Reminder nahi gaya: " + e.getMessage());
         }
     }
 

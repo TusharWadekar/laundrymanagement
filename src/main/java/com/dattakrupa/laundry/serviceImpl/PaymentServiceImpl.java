@@ -3,6 +3,8 @@ package com.dattakrupa.laundry.serviceImpl;
 import com.dattakrupa.laundry.dto.PaymentRequestDTO;
 import com.dattakrupa.laundry.dto.PaymentResponseDTO;
 import com.dattakrupa.laundry.enums.PaymentStatus;
+import com.dattakrupa.laundry.exception.BadRequestException;
+import com.dattakrupa.laundry.exception.PaymentException;
 import com.dattakrupa.laundry.exception.ResourceNotFoundException;
 import com.dattakrupa.laundry.model.Customer;
 import com.dattakrupa.laundry.model.Order;
@@ -52,25 +54,20 @@ public class PaymentServiceImpl implements PaymentService {
     @Override
     public Map<String, Object> createRazorpayOrder(Long orderId) {
         try {
-            // Order dhundo
             Order order = orderRepository.findById(orderId)
                     .orElseThrow(() -> new ResourceNotFoundException(
-                            "Order nahi mila ID: " + orderId));
+                            "Order", orderId));
 
-            // Already paid check karo
             if (order.getPaymentStatus() == PaymentStatus.PAID) {
-                throw new RuntimeException("Yeh order already paid hai!");
+                throw new BadRequestException("Yeh order already paid hai!");
             }
 
-            // Razorpay client banao
             RazorpayClient razorpay = new RazorpayClient(keyId, keySecret);
 
-            // Due amount calculate karo
             double dueAmount = order.getTotalAmount() - order.getPaidAmount();
 
-            // Razorpay order request
             JSONObject orderRequest = new JSONObject();
-            orderRequest.put("amount", (int)(dueAmount * 100)); // Paise mein
+            orderRequest.put("amount", (int)(dueAmount * 100));
             orderRequest.put("currency", "INR");
             orderRequest.put("receipt", "dattakrupa_order_" + orderId);
             orderRequest.put("notes", new JSONObject()
@@ -79,32 +76,38 @@ public class PaymentServiceImpl implements PaymentService {
                     .put("customerName", order.getCustomer().getName())
             );
 
-            // Razorpay pe order create karo
             com.razorpay.Order razorpayOrder = razorpay.orders.create(orderRequest);
 
-            // Razorpay order ID save karo
             order.setRazorpayOrderId(razorpayOrder.get("id"));
             orderRepository.save(order);
 
-            log.info("Razorpay order create hua: {} for Order #{}",
-                    razorpayOrder.get("id"), orderId);
+            // ✅ Clean payment link
+            String paymentLink = frontendUrl + "/pay/" + orderId;
 
-            // Frontend ko response bhejo
+            // ✅ WhatsApp pe bill bhejo
+            whatsAppService.sendBillMessage(order, paymentLink);
+
+            // ✅ Amount — decimal remove
+            int amount = (int) Math.round(dueAmount);
+
             Map<String, Object> response = new HashMap<>();
             response.put("razorpayOrderId", razorpayOrder.get("id"));
-            response.put("amount", razorpayOrder.get("amount"));
+            response.put("amount", (int)(dueAmount * 100));
             response.put("currency", "INR");
             response.put("keyId", keyId);
             response.put("customerName", order.getCustomer().getName());
             response.put("customerPhone", order.getCustomer().getPhoneNumber());
             response.put("description", "DattaKrupa Laundry — Order #" + orderId);
-            response.put("paymentLink", frontendUrl + "/pay/" + orderId);
+            response.put("paymentLink", paymentLink); // ✅ Clean link
+            response.put("dueAmount", amount);        // ✅ No decimal
 
             return response;
 
+        } catch (BadRequestException | ResourceNotFoundException e) {
+            throw e;
         } catch (Exception e) {
-            log.error("Razorpay order create failed: {}", e.getMessage());
-            throw new RuntimeException("Payment order create nahi hua: " + e.getMessage());
+            throw new PaymentException(
+                    "Payment order create nahi hua: " + e.getMessage());
         }
     }
 

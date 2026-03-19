@@ -8,38 +8,53 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
+
 @Service
 public class DashboardServiceImpl implements DashboardService {
 
     @Autowired
-    private  OrderRepository orderRepository;
+    private OrderRepository orderRepository;
     @Autowired
-    private  CustomerRepository customerRepository;
+    private CustomerRepository customerRepository;
     @Autowired
-    private  PaymentRepository paymentRepository;
+    private PaymentRepository paymentRepository;
     @Autowired
-    private  UdhariLedgerRepository udhariLedgerRepository;
+    private UdhariLedgerRepository udhariLedgerRepository;
 
     @Override
     public DashboardResponseDTO getDashboardData() {
+
+        // Today ka start aur end time
+        LocalDateTime todayStart = LocalDateTime.now()
+                .withHour(0).withMinute(0).withSecond(0);
+        LocalDateTime todayEnd = LocalDateTime.now()
+                .withHour(23).withMinute(59).withSecond(59);
+
         return DashboardResponseDTO.builder()
-                // Aaj ka
+                // ✅ Fix — Today orders count
+                .todayOrders((long) orderRepository
+                        .findByCreatedAtBetween(todayStart, todayEnd).size())
+
                 .todayRevenue(orderRepository.getTodayRevenue())
                 .todayOnlinePayments(paymentRepository.getTodayOnlinePayments())
                 .todayCashPayments(paymentRepository.getTodayCashPayments())
 
-                // Orders status
-                .receivedOrders((long) orderRepository.findByStatus(OrderStatus.RECEIVED).size())
-                .washingOrders((long) orderRepository.findByStatus(OrderStatus.WASHING).size())
-                .dryingOrders((long) orderRepository.findByStatus(OrderStatus.DRYING).size())
-                .readyOrders((long) orderRepository.findByStatus(OrderStatus.READY).size())
-                .deliveredOrders((long) orderRepository.findByStatus(OrderStatus.DELIVERED).size())
+                .receivedOrders((long) orderRepository
+                        .findByStatus(OrderStatus.RECEIVED).size())
+                .washingOrders((long) orderRepository
+                        .findByStatus(OrderStatus.WASHING).size())
+                .dryingOrders((long) orderRepository
+                        .findByStatus(OrderStatus.DRYING).size())
+                .readyOrders((long) orderRepository
+                        .findByStatus(OrderStatus.READY).size())
+                .deliveredOrders((long) orderRepository
+                        .findByStatus(OrderStatus.DELIVERED).size())
 
-                // Udhari
                 .totalPendingUdhari(udhariLedgerRepository.getTotalPendingUdhari())
-                .customersWithUdhari((long) customerRepository.findByTotalDueGreaterThan(0.0).size())
+                .customersWithUdhari((long) customerRepository
+                        .findByTotalDueGreaterThan(0.0).size())
 
-                // Total
                 .totalCustomers(customerRepository.count())
                 .totalOrders(orderRepository.count())
                 .build();

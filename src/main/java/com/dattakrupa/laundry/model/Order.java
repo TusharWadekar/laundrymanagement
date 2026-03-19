@@ -67,4 +67,10 @@ public class Order {
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @ToString.Exclude
     private List<Payment> payments;
+
+    public Double getDueAmount() {
+        if (this.totalAmount == null) return 0.0;
+        if (this.paidAmount == null) return this.totalAmount;
+        return this.totalAmount - this.paidAmount;
+    }
 }
