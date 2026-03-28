@@ -42,7 +42,8 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
 
     // Today's total revenue
     @Query("SELECT COALESCE(SUM(o.paidAmount), 0) FROM Order o " +
-           "WHERE DATE(o.createdAt) = CURRENT_DATE")
+            "WHERE o.createdAt >= CURRENT_DATE " +
+            "AND o.createdAt < CURRENT_DATE + 1")
     Double getTodayRevenue();
 
     // Total pending amount

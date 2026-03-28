@@ -8,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Service
@@ -26,10 +27,8 @@ public class DashboardServiceImpl implements DashboardService {
     public DashboardResponseDTO getDashboardData() {
 
         // Today ka start aur end time
-        LocalDateTime todayStart = LocalDateTime.now()
-                .withHour(0).withMinute(0).withSecond(0);
-        LocalDateTime todayEnd = LocalDateTime.now()
-                .withHour(23).withMinute(59).withSecond(59);
+        LocalDateTime todayStart = LocalDate.now().atStartOfDay();
+        LocalDateTime todayEnd = LocalDate.now().plusDays(1).atStartOfDay();
 
         return DashboardResponseDTO.builder()
                 // ✅ Fix — Today orders count
